@@ -1,0 +1,247 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  email         String    @unique
+  passwordHash  String    @map("password_hash")
+  name          String
+  role          UserRole  @default(staff)
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  createdProducts Product[]
+  createdPurchases Purchase[]
+  createdSales     Sale[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  admin
+  owner
+  staff
+}
+
+model Product {
+  id                   String      @id @default(auto()) @map("_id") @db.ObjectId
+  sku                  String      @unique
+  name                 String
+  description          String?
+  size                 String
+  company              String
+  finishType           FinishType  @map("finish_type")
+  color                String?
+  thickness            Float?
+  grade                Grade?
+  category             String?
+  application          String?
+  unitsPerBox          Int         @map("units_per_box")
+  currentStockBoxes    Float       @default(0) @map("current_stock_boxes")
+  minimumStockBoxes    Float       @default(0) @map("minimum_stock_boxes")
+  lowStockIgnored      Boolean     @default(false) @map("low_stock_ignored")
+  purchasePricePerBox  Float?      @map("purchase_price_per_box")
+  sellingPricePerBox   Float?      @map("selling_price_per_box")
+  sellingPricePerPiece Float?      @map("selling_price_per_piece")
+  imageUrl             String?     @map("image_url")
+  isActive             Boolean     @default(true) @map("is_active")
+  createdAt            DateTime    @default(now()) @map("created_at")
+  updatedAt            DateTime    @updatedAt @map("updated_at")
+  createdById          String      @map("created_by") @db.ObjectId
+
+  // Relations
+  createdBy     User           @relation(fields: [createdById], references: [id])
+  purchaseItems PurchaseItem[]
+  saleItems     SaleItem[]
+
+  @@index([company])
+  @@index([finishType])
+  @@index([size])
+  @@index([category])
+  @@index([isActive])
+  @@index([currentStockBoxes])
+  @@map("products")
+}
+
+enum FinishType {
+  Glossy
+  Matt
+  Semi_gloss @map("Semi-gloss")
+  Rustic
+  Polished
+}
+
+enum Grade {
+  Premium
+  Standard
+  Economy
+}
+
+model Customer {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  name           String
+  phone          String
+  email          String?
+  address        String?
+  notes          String?
+  totalPurchases Float    @default(0) @map("total_purchases")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  sales Sale[]
+
+  @@unique([name, phone])
+  @@index([phone])
+  @@index([name])
+  @@map("customers")
+}
+
+model Supplier {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  contactPerson String?  @map("contact_person")
+  phone         String?
+  email         String?
+  address       String?
+  notes         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  purchases Purchase[]
+
+  @@index([name])
+  @@map("suppliers")
+}
+
+model Purchase {
+  id             String        @id @default(auto()) @map("_id") @db.ObjectId
+  purchaseNumber String        @unique @map("purchase_number")
+  supplierId     String        @map("supplier_id") @db.ObjectId
+  supplierName   String        @map("supplier_name")
+  invoiceNumber  String        @map("invoice_number")
+  invoiceDate    DateTime      @map("invoice_date") @db.Date
+  purchaseDate   DateTime      @map("purchase_date") @db.Date
+  totalAmount    Float         @default(0) @map("total_amount")
+  paymentStatus  PaymentStatus @default(Pending) @map("payment_status")
+  paymentAmount  Float         @default(0) @map("payment_amount")
+  notes          String?
+  createdAt      DateTime      @default(now()) @map("created_at")
+  createdById    String        @map("created_by") @db.ObjectId
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  supplier  Supplier       @relation(fields: [supplierId], references: [id])
+  createdBy User           @relation(fields: [createdById], references: [id])
+  items     PurchaseItem[]
+
+  @@index([supplierId])
+  @@index([invoiceNumber])
+  @@index([purchaseDate])
+  @@index([paymentStatus])
+  @@map("purchases")
+}
+
+enum PaymentStatus {
+  Paid
+  Pending
+  Partial
+}
+
+model PurchaseItem {
+  id                  String   @id @default(auto()) @map("_id") @db.ObjectId
+  purchaseId          String   @map("purchase_id") @db.ObjectId
+  productId           String   @map("product_id") @db.ObjectId
+  productSku          String   @map("product_sku")
+  productName         String   @map("product_name")
+  quantityBoxes       Float    @map("quantity_boxes")
+  unitsPerBox         Int      @map("units_per_box")
+  quantityPieces      Float    @map("quantity_pieces")
+  purchasePricePerBox Float    @map("purchase_price_per_box")
+  totalPrice          Float    @map("total_price")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  // Relations
+  purchase Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id])
+
+  @@index([purchaseId])
+  @@index([productId])
+  @@map("purchase_items")
+}
+
+model Sale {
+  id                 String            @id @default(auto()) @map("_id") @db.ObjectId
+  saleNumber         String            @unique @map("sale_number")
+  customerId         String            @map("customer_id") @db.ObjectId
+  customerName       String            @map("customer_name")
+  customerPhone      String            @map("customer_phone")
+  saleDate           DateTime          @map("sale_date") @db.Date
+  subtotal           Float             @default(0)
+  discountAmount     Float             @default(0) @map("discount_amount")
+  discountPercentage Float?            @map("discount_percentage")
+  totalAmount        Float             @default(0) @map("total_amount")
+  paymentMethod      PaymentMethod     @map("payment_method")
+  paymentStatus      SalePaymentStatus @default(Paid) @map("payment_status")
+  paymentAmount      Float             @default(0) @map("payment_amount")
+  notes              String?
+  createdAt          DateTime          @default(now()) @map("created_at")
+  createdById        String            @map("created_by") @db.ObjectId
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+
+  // Relations
+  customer  Customer   @relation(fields: [customerId], references: [id])
+  createdBy User       @relation(fields: [createdById], references: [id])
+  items     SaleItem[]
+
+  @@index([customerId])
+  @@index([saleDate])
+  @@index([paymentMethod])
+  @@index([paymentStatus])
+  @@index([createdById])
+  @@map("sales")
+}
+
+enum PaymentMethod {
+  Cash
+  Card
+  UPI
+  Credit
+}
+
+enum SalePaymentStatus {
+  Paid
+  Pending
+}
+
+model SaleItem {
+  id                   String   @id @default(auto()) @map("_id") @db.ObjectId
+  saleId               String   @map("sale_id") @db.ObjectId
+  productId            String   @map("product_id") @db.ObjectId
+  productSku           String   @map("product_sku")
+  productName          String   @map("product_name")
+  quantityBoxes        Float    @map("quantity_boxes")
+  quantityPieces       Float    @map("quantity_pieces")
+  unitsPerBox          Int      @map("units_per_box")
+  sellingPricePerBox   Float?   @map("selling_price_per_box")
+  sellingPricePerPiece Float?   @map("selling_price_per_piece")
+  totalPrice           Float    @map("total_price")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  // Relations
+  sale    Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([saleId])
+  @@index([productId])
+  @@map("sale_items")
+}
